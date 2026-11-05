@@ -1,0 +1,24 @@
+# Byte-compiled / virtual environments
+__pycache__/
+*.py[cod]
+*$py.class
+.venv/
+venv/
+ENV/
+
+# Packaging / build artifacts
+build/
+dist/
+*.egg-info/
+
+# Tool caches
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Local runtime state & secrets
+.env
+.data/
+graphify-out/
+*.db
+*.sqlite3
