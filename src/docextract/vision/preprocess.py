@@ -43,26 +43,16 @@ def estimate_skew_angle(
     text rows and blank inter-line gaps, maximizing row-sum variance.
     """
     gray = ImageOps.grayscale(image)
-    # Downsample so projection search runs in <15ms on CPU
-    max_dim = 480
-    scale = min(1.0, max_dim / max(gray.width, gray.height, 1))
-    thumb_w = max(32, int(round(gray.width * scale)))
-    thumb_h = max(32, int(round(gray.height * scale)))
-    thumb = gray.resize((thumb_w, thumb_h), resample=Image.Resampling.BILINEAR)
-
-    # Invert and binarize: text pixels = 1, background = 0
-    hist = thumb.histogram()
-    total_px = thumb_w * thumb_h
-    # Otsu-style simple percentile threshold: darkest 25% of pixels treated as foreground ink
-    cutoff = 180
-    acc = 0
-    for val, count in enumerate(hist):
-        acc += count
-        if acc >= total_px * 0.25:
-            cutoff = min(220, max(60, val + 15))
-            break
-
-    binary_inv = thumb.point(lambda p: 1 if p < cutoff else 0, mode="L")
+    # Invert grayscale (0 = white paper, 255 = pure black ink) before downsampling
+    # so anti-aliased strokes preserve their exact ink weight at thumbnail scale.
+    inv_full = ImageOps.invert(gray)
+    max_dim = 600
+    scale = min(1.0, max_dim / max(inv_full.width, inv_full.height, 1))
+    thumb_w = max(32, int(round(inv_full.width * scale)))
+    thumb_h = max(32, int(round(inv_full.height * scale)))
+    thumb = inv_full.resize((thumb_w, thumb_h), resample=Image.Resampling.BILINEAR)
+    # Suppress faint paper noise (< 16) while keeping continuous ink weight
+    binary_inv = thumb.point(lambda p: p if p >= 16 else 0, mode="L")
 
     # Coarse search
     best_angle = 0.0

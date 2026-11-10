@@ -48,7 +48,7 @@ dev = [
 docextract-datagen = "datagen.cli:main"
 
 [tool.hatch.build.targets.wheel]
-packages = ["src/docextract"]
+packages = ["src/docextract", "datagen"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
@@ -68,4 +68,4 @@ python_version = "3.11"
 strict = true
 ignore_missing_imports = true
 warn_unused_ignores = true
-files = ["src"]
+files = ["src", "datagen"]
