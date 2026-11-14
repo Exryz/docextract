@@ -56,9 +56,11 @@ class PageLayout(BaseModel):
         if not cleaned or not self.words:
             return None
 
-        target_parts = cleaned.split(" ")
+        target_parts = [p.strip(",:;().") for p in cleaned.split(" ") if p.strip(",:;().")]
+        if not target_parts:
+            return None
         ordered = sort_words_reading_order(self.words)
-        norm_tokens = [tok.text.strip().lower().strip(",:;()") for tok in ordered]
+        norm_tokens = [tok.text.strip().lower().strip(",:;().") for tok in ordered]
 
         n = len(target_parts)
         for i in range(len(ordered) - n + 1):
@@ -67,7 +69,7 @@ class PageLayout(BaseModel):
                 return BoundingBox.merge([tok.bbox for tok in ordered[i : i + n]])
 
         # Fallback: substring match inside a single token (e.g. "$1,240.00" vs "1,240.00")
-        stripped_target = cleaned.lstrip("$€£₱¥")
+        stripped_target = cleaned.lstrip("$€£₱¥").rstrip(",.")
         for tok in ordered:
             tok_clean = tok.text.strip().lower().lstrip("$€£₱¥").rstrip(",.")
             if stripped_target and tok_clean == stripped_target:
