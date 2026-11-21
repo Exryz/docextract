@@ -31,6 +31,7 @@ from docextract.store.models import (
     InvalidStateTransitionError,
 )
 from docextract.store.repository import DocumentRepository
+from docextract.ui.router import build_ui_router
 from docextract.vision.ocr import OcrEngine
 
 
@@ -132,6 +133,7 @@ def create_app(
     app.state.settings = s
     app.state.repo = actual_repo
     app.state.queue = actual_queue
+    app.include_router(build_ui_router(actual_repo))
 
     @app.get("/health")
     def health() -> dict[str, str]:

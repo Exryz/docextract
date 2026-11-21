@@ -1,0 +1,155 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>docextract — Human Review Queue</title>
+  <style>
+    :root {
+      --bg: #0f172a;
+      --panel: #1e293b;
+      --border: #334155;
+      --text: #f8fafc;
+      --muted: #94a3b8;
+      --green: #10b981;
+      --amber: #f59e0b;
+      --red: #ef4444;
+      --blue: #3b82f6;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      padding: 2rem;
+      line-height: 1.5;
+    }
+    header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 1.5rem;
+      padding-bottom: 1rem;
+      border-bottom: 1px solid var(--border);
+    }
+    h1 { font-size: 1.5rem; font-weight: 700; }
+    .filters a {
+      color: var(--muted);
+      text-decoration: none;
+      margin-left: 0.75rem;
+      padding: 0.35rem 0.75rem;
+      border-radius: 6px;
+      border: 1px solid var(--border);
+      font-size: 0.875rem;
+    }
+    .filters a.active, .filters a:hover {
+      color: var(--text);
+      border-color: var(--blue);
+      background: rgba(59, 130, 246, 0.15);
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      background: var(--panel);
+      border-radius: 8px;
+      overflow: hidden;
+      border: 1px solid var(--border);
+    }
+    th, td {
+      text-align: left;
+      padding: 0.85rem 1rem;
+      border-bottom: 1px solid var(--border);
+      font-size: 0.9rem;
+    }
+    th {
+      background: rgba(15, 23, 42, 0.5);
+      color: var(--muted);
+      font-weight: 600;
+      text-transform: uppercase;
+      font-size: 0.75rem;
+      letter-spacing: 0.05em;
+    }
+    .badge {
+      display: inline-block;
+      padding: 0.2rem 0.6rem;
+      border-radius: 999px;
+      font-size: 0.75rem;
+      font-weight: 600;
+      text-transform: uppercase;
+    }
+    .badge.approved { background: rgba(16, 185, 129, 0.2); color: var(--green); }
+    .badge.needs_review { background: rgba(245, 158, 11, 0.2); color: var(--amber); }
+    .badge.rejected, .badge.failed { background: rgba(239, 68, 68, 0.2); color: var(--red); }
+    .btn {
+      display: inline-block;
+      padding: 0.35rem 0.75rem;
+      background: var(--blue);
+      color: white;
+      text-decoration: none;
+      border-radius: 6px;
+      font-size: 0.85rem;
+      font-weight: 500;
+    }
+    .empty {
+      padding: 2.5rem;
+      text-align: center;
+      color: var(--muted);
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <div>
+      <h1>docextract Verification Queue</h1>
+      <p style="color: var(--muted); font-size: 0.9rem;">
+        Deterministic validation + bounding-box-grounded human review
+      </p>
+    </div>
+    <nav class="filters">
+      <a href="/review" class="{{ 'active' if not active_status else '' }}">All</a>
+      <a href="/review?status=needs_review" class="{{ 'active' if active_status == 'needs_review' else '' }}">Needs Review</a>
+      <a href="/review?status=approved" class="{{ 'active' if active_status == 'approved' else '' }}">Approved</a>
+      <a href="/review?status=rejected" class="{{ 'active' if active_status == 'rejected' else '' }}">Rejected</a>
+    </nav>
+  </header>
+
+  <table>
+    <thead>
+      <tr>
+        <th>Document ID</th>
+        <th>Kind</th>
+        <th>Vendor / Merchant</th>
+        <th>Document No.</th>
+        <th>Total</th>
+        <th>Confidence</th>
+        <th>Status</th>
+        <th>Action</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for doc in documents %}
+      <tr data-doc-id="{{ doc.id }}">
+        <td><code>{{ doc.id }}</code></td>
+        <td>{{ doc.kind or "—" }}</td>
+        <td>{{ doc.vendor_name or "—" }}</td>
+        <td>{{ doc.document_number or "—" }}</td>
+        <td>{{ (doc.currency ~ " " ~ doc.total_amount) if doc.total_amount else "—" }}</td>
+        <td>
+          {% if doc.document_confidence is not none %}
+            {{ "%.1f%%"|format(doc.document_confidence * 100) }}
+          {% else %}
+            —
+          {% endif %}
+        </td>
+        <td><span class="badge {{ doc.status }}">{{ doc.status }}</span></td>
+        <td><a class="btn" href="/review/{{ doc.id }}">Inspect &amp; Review</a></td>
+      </tr>
+      {% else %}
+      <tr>
+        <td colspan="8" class="empty">No documents matching filter.</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</body>
+</html>

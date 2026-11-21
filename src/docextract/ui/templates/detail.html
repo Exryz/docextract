@@ -1,0 +1,274 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Review {{ record.id }} — docextract</title>
+  <script src="https://unpkg.com/htmx.org@1.9.12"></script>
+  <style>
+    :root {
+      --bg: #0f172a;
+      --panel: #1e293b;
+      --border: #334155;
+      --text: #f8fafc;
+      --muted: #94a3b8;
+      --green: #10b981;
+      --amber: #f59e0b;
+      --red: #ef4444;
+      --blue: #3b82f6;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      padding: 1.5rem;
+      line-height: 1.45;
+    }
+    header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 1.25rem;
+      padding-bottom: 0.85rem;
+      border-bottom: 1px solid var(--border);
+    }
+    .back-link { color: var(--muted); text-decoration: none; font-size: 0.9rem; }
+    .back-link:hover { color: var(--text); }
+    .workspace {
+      display: grid;
+      grid-template-columns: 1.1fr 0.9fr;
+      gap: 1.5rem;
+      align-items: start;
+    }
+    .card {
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 1.25rem;
+      margin-bottom: 1.25rem;
+    }
+    .card h2 {
+      font-size: 1rem;
+      margin-bottom: 0.85rem;
+      color: var(--text);
+      border-bottom: 1px solid var(--border);
+      padding-bottom: 0.5rem;
+    }
+    .canvas-wrap {
+      position: relative;
+      width: 100%;
+      background: #020617;
+      border-radius: 6px;
+      overflow: hidden;
+    }
+    .canvas-wrap img {
+      display: block;
+      width: 100%;
+      height: auto;
+    }
+    .bbox-svg {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      pointer-events: all;
+    }
+    .bbox-rect {
+      fill: rgba(16, 185, 129, 0.14);
+      stroke: #10b981;
+      stroke-width: 0.003;
+      cursor: pointer;
+      transition: fill 0.15s ease;
+    }
+    .bbox-rect.low-conf {
+      fill: rgba(239, 68, 68, 0.18);
+      stroke: #ef4444;
+    }
+    .bbox-rect:hover, .bbox-rect.active {
+      fill: rgba(59, 130, 246, 0.32);
+      stroke: #3b82f6;
+      stroke-width: 0.005;
+    }
+    .field-row {
+      display: grid;
+      grid-template-columns: 165px 1fr 70px;
+      gap: 0.65rem;
+      align-items: center;
+      margin-bottom: 0.65rem;
+    }
+    .field-row label {
+      font-size: 0.82rem;
+      color: var(--muted);
+      font-family: monospace;
+    }
+    .field-row input {
+      background: #0f172a;
+      border: 1px solid var(--border);
+      color: var(--text);
+      padding: 0.45rem 0.65rem;
+      border-radius: 5px;
+      font-size: 0.9rem;
+    }
+    .field-row input.low-conf {
+      border-color: var(--red);
+      background: rgba(239, 68, 68, 0.08);
+    }
+    .conf-pill {
+      text-align: right;
+      font-size: 0.78rem;
+      font-weight: 600;
+    }
+    .rule-item {
+      font-size: 0.85rem;
+      padding: 0.45rem 0.65rem;
+      border-radius: 5px;
+      margin-bottom: 0.4rem;
+    }
+    .rule-item.failed { background: rgba(239, 68, 68, 0.15); color: #fca5a5; }
+    .rule-item.passed { background: rgba(16, 185, 129, 0.12); color: #6ee7b7; }
+    .actions {
+      display: flex;
+      gap: 0.75rem;
+      margin-top: 1rem;
+    }
+    button {
+      padding: 0.55rem 1rem;
+      border: none;
+      border-radius: 6px;
+      font-weight: 600;
+      cursor: pointer;
+      font-size: 0.9rem;
+    }
+    .btn-approve { background: var(--green); color: #022c22; }
+    .btn-reject { background: var(--red); color: white; }
+    .audit-item {
+      font-size: 0.82rem;
+      padding: 0.4rem 0;
+      border-bottom: 1px solid var(--border);
+      color: var(--muted);
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <div>
+      <a class="back-link" href="/review">&larr; Back to Verification Queue</a>
+      <h1 style="font-size: 1.3rem; margin-top: 0.25rem;">
+        Document <code>{{ record.id }}</code> ({{ record.filename }})
+      </h1>
+    </div>
+    <div>
+      <span id="status-badge" style="font-weight: 700; text-transform: uppercase;">
+        Status: {{ record.status }}
+      </span>
+    </div>
+  </header>
+
+  <div class="workspace">
+    <!-- Left Column: Page Raster + Interactive SVG Bounding Boxes -->
+    <div class="card">
+      <h2>Page {{ current_page }} of {{ record.page_count }} (Click Bounding Box to Focus Field)</h2>
+      <div class="canvas-wrap">
+        <img src="/documents/{{ record.id }}/pages/{{ current_page }}.png?overlay=false" alt="Page {{ current_page }}">
+        <svg class="bbox-svg" viewBox="0 0 1 1" preserveAspectRatio="none">
+          {% for box in bboxes %}
+          <rect
+            class="bbox-rect {{ 'low-conf' if box.is_low else '' }}"
+            data-field="{{ box.field_path }}"
+            x="{{ box.x0 }}"
+            y="{{ box.y0 }}"
+            width="{{ box.width }}"
+            height="{{ box.height }}"
+            onclick="focusField('{{ box.field_path }}')">
+            <title>{{ box.field_path }} ({{ box.confidence_pct }})</title>
+          </rect>
+          {% endfor %}
+        </svg>
+      </div>
+    </div>
+
+    <!-- Right Column: Editable Field Form, Validation Rules, and Audit Log -->
+    <div>
+      <div class="card">
+        <h2>Extracted Fields &amp; Confidence</h2>
+        <form id="review-form" method="post" action="/review/{{ record.id }}/submit">
+          <div class="field-row">
+            <label for="reviewer">Reviewer</label>
+            <input type="text" id="reviewer" name="reviewer" value="reviewer.ops" required>
+            <span></span>
+          </div>
+
+          {% for f in editable_fields %}
+          <div class="field-row">
+            <label for="field-{{ f.path }}">{{ f.path }}</label>
+            <input
+              type="text"
+              id="field-{{ f.path }}"
+              name="field__{{ f.path }}"
+              value="{{ f.value }}"
+              class="{{ 'low-conf' if f.needs_review else '' }}">
+            <span class="conf-pill">{{ "%.0f%%"|format(f.score * 100) }}</span>
+          </div>
+          {% endfor %}
+
+          <div class="field-row">
+            <label for="note">Review Note</label>
+            <input type="text" id="note" name="note" placeholder="Optional reason for edit/decision">
+            <span></span>
+          </div>
+
+          <div class="actions">
+            <button type="submit" name="action" value="approved" class="btn-approve">
+              Save &amp; Approve
+            </button>
+            <button type="submit" name="action" value="rejected" class="btn-reject">
+              Reject Document
+            </button>
+          </div>
+        </form>
+      </div>
+
+      <div class="card">
+        <h2>Deterministic Validation Rules</h2>
+        {% for rule in validation_results %}
+        <div class="rule-item {{ 'passed' if rule.passed else 'failed' }}" data-rule-id="{{ rule.rule_id }}">
+          <strong>[{{ rule.rule_id }}]</strong> {{ rule.message }}
+        </div>
+        {% else %}
+        <p style="color: var(--muted); font-size: 0.85rem;">No validation rules recorded.</p>
+        {% endfor %}
+      </div>
+
+      <div class="card">
+        <h2>Reviewer Audit Trail</h2>
+        {% for entry in audit_entries %}
+        <div class="audit-item">
+          <strong>{{ entry.reviewer }}</strong> &middot; <code>{{ entry.action }}</code>
+          {% if entry.field_path %}
+            on <code>{{ entry.field_path }}</code>:
+            <code>{{ entry.before_value }}</code> &rarr; <code>{{ entry.after_value }}</code>
+          {% endif %}
+          {% if entry.note %} ({{ entry.note }}){% endif %}
+        </div>
+        {% else %}
+        <p style="color: var(--muted); font-size: 0.85rem;">No manual edits yet.</p>
+        {% endfor %}
+      </div>
+    </div>
+  </div>
+
+  <script>
+    function focusField(fieldPath) {
+      const input = document.getElementById("field-" + fieldPath);
+      if (input) {
+        input.focus();
+        input.select();
+      }
+      document.querySelectorAll(".bbox-rect").forEach(el => {
+        el.classList.toggle("active", el.getAttribute("data-field") === fieldPath);
+      });
+    }
+  </script>
+</body>
+</html>
