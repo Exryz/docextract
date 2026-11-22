@@ -12,6 +12,8 @@ from fastapi.responses import Response
 from PIL import Image, ImageDraw
 from pydantic import BaseModel, Field
 
+from docextract.api.export import build_export_router
+from docextract.api.webhooks import HttpWebhookSender, WebhookSender
 from docextract.config import Settings, get_settings
 from docextract.extract.llm import ExtractionLLM
 from docextract.ingest.sniffer import (
@@ -115,6 +117,7 @@ def create_app(
     queue: JobQueue | None = None,
     llm: ExtractionLLM | None = None,
     ocr_engine: OcrEngine | None = None,
+    webhook_sender: WebhookSender | None = None,
     settings: Settings | None = None,
 ) -> FastAPI:
     s = settings or get_settings()
@@ -125,6 +128,13 @@ def create_app(
         ocr_engine=ocr_engine,
         settings=s,
     )
+    actual_webhook: WebhookSender | None = webhook_sender
+    if actual_webhook is None and s.webhook_url:
+        actual_webhook = HttpWebhookSender(
+            url=s.webhook_url,
+            secret=s.webhook_secret,
+            max_retries=s.webhook_max_retries,
+        )
 
     app = FastAPI(
         title="docextract Verified Document AI API",
@@ -133,7 +143,9 @@ def create_app(
     app.state.settings = s
     app.state.repo = actual_repo
     app.state.queue = actual_queue
+    app.state.webhook_sender = actual_webhook
     app.include_router(build_ui_router(actual_repo))
+    app.include_router(build_export_router(actual_repo))
 
     @app.get("/health")
     def health() -> dict[str, str]:
@@ -199,6 +211,11 @@ def create_app(
         if run_sync:
             await actual_queue.process_job(job.id)
             rec = actual_repo.get(rec.id)
+            if actual_webhook is not None:
+                await actual_webhook.send_event(
+                    f"document.{rec.status}",
+                    _serialize_record(rec, job_id=job.id),
+                )
 
         return UploadDocumentResponse(
             document_id=rec.id,
@@ -281,7 +298,7 @@ def create_app(
         return Response(content=rendered_png, media_type="image/png")
 
     @app.post("/documents/{doc_id}/review")
-    def review_document(doc_id: str, body: ReviewRequest) -> dict[str, Any]:
+    async def review_document(doc_id: str, body: ReviewRequest) -> dict[str, Any]:
         try:
             updated = actual_repo.apply_review(
                 doc_id,
@@ -295,7 +312,10 @@ def create_app(
         except (InvalidStateTransitionError, ValueError) as exc:
             raise HTTPException(status_code=400, detail=str(exc)) from exc
 
-        return get_document(updated.id)
+        doc_payload = get_document(updated.id)
+        if actual_webhook is not None:
+            await actual_webhook.send_event(f"document.{updated.status}", doc_payload)
+        return doc_payload
 
     @app.get("/jobs/{job_id}")
     def get_job_status(job_id: str) -> dict[str, Any]:
