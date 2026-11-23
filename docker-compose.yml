@@ -1,0 +1,19 @@
+services:
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "8000:8000"
+    env_file:
+      - path: .env
+        required: false
+    environment:
+      DOCEXTRACT_DATABASE_URL: sqlite:////app/.data/docextract.db
+      DOCEXTRACT_STORAGE_DIR: /app/.data/storage
+    volumes:
+      - docextract_data:/app/.data
+    restart: unless-stopped
+
+volumes:
+  docextract_data:
