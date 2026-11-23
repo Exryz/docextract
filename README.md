@@ -123,6 +123,26 @@ docker compose up --build
 
 **Outbound Webhooks:** When `DOCEXTRACT_WEBHOOK_URL` is configured, status transitions emit `document.approved`, `document.needs_review`, or `document.rejected` POST events signed with `X-Docextract-Signature: sha256=<hmac>` and `X-Docextract-Timestamp` (verified via constant-time `hmac.compare_digest` with exponential backoff retries).
 
+### API Usage Examples
+
+```bash
+# 1. Upload and extract an invoice (idempotent)
+curl -X POST http://localhost:8000/documents \
+  -H "Idempotency-Key: inv-2026-0042" \
+  -F "file=@invoice.pdf"
+
+# 2. Inspect extracted fields, validation rules, and confidence scores
+curl http://localhost:8000/documents/<document_id>
+
+# 3. Apply a human correction and approve
+curl -X POST http://localhost:8000/documents/<document_id>/review \
+  -H "Content-Type: application/json" \
+  -d '{"reviewer":"ops.lead","action":"approved","field_overrides":{"total":"672.00"}}'
+
+# 4. Export verified documents to CSV
+curl "http://localhost:8000/export.csv?status=approved" -o verified_invoices.csv
+```
+
 ---
 
 ## Evaluation Benchmark (`evals/run_evals.py`)
