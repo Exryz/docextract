@@ -9,7 +9,7 @@ description = "Verified invoice and receipt extraction pipeline: PDF/OCR layout 
 readme = "README.md"
 requires-python = ">=3.11"
 license = { text = "MIT" }
-authors = [{ name = "Paul Andrei Datinguinoo" }]
+authors = [{ name = "Exryz" }]
 dependencies = [
     "pydantic>=2.7",
     "pydantic-settings>=2.3",
